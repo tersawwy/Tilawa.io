@@ -1,4 +1,4 @@
-# QuranAI
+# Tilawa.io
 
 Give it a YouTube recitation URL and it spits out a TikTok-ready video — 30 seconds, 9:16 portrait, Arabic text highlighting word-by-word as the reciter speaks, English translation below, blurred nature background. Then it uploads.
 
@@ -30,8 +30,8 @@ Four modules in sequence:
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/QuranAI.git
-cd QuranAI
+git clone https://github.com/yourusername/Tilawa.io.git
+cd Tilawa.io
 pip install -r requirements.txt
 playwright install chromium
 ```
@@ -99,7 +99,7 @@ Translation ID 131 on Quran.com = Sahih International.
 ## Project structure
 
 ```
-QuranAI/
+Tilawa.io/
 ├── main.py
 ├── config.yaml
 ├── requirements.txt
