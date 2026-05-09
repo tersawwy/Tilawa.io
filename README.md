@@ -30,13 +30,26 @@ Four modules in sequence:
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/Tilawa.io.git
+git clone https://github.com/tersawwy/Tilawa.io.git
 cd Tilawa.io
 pip install -r requirements.txt
 playwright install chromium
 ```
 
-Add your Pixabay API key to `config.yaml`. For TikTok uploads, export your browser session cookies in Netscape format to `cookies/tiktok.txt`.
+**Set up your API keys:**
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in at least one background provider key:
+
+- **Pexels** (preferred) — free key at [pexels.com/api](https://www.pexels.com/api/)
+- **Pixabay** (fallback) — free key at [pixabay.com/api/docs](https://pixabay.com/api/docs/)
+
+If neither key is set, the pipeline still runs but uses a solid black background.
+
+For TikTok uploads, export your browser session cookies in Netscape format to `cookies/tiktok.txt`.
 
 ---
 

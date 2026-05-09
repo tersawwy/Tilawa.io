@@ -110,8 +110,8 @@ def fetch_cinematic_clips(config: dict, n_clips: int = 8) -> list:
     clips: list = list(cached)   # start from what we have
     need = n_clips - len(clips)
 
-    pexels_key  = sc.get("pexels_api_key", "")
-    pixabay_key = sc.get("pixabay_api_key", "") or config.get("background", {}).get("pixabay_api_key", "")
+    pexels_key  = os.environ.get("PEXELS_API_KEY") or sc.get("pexels_api_key", "")
+    pixabay_key = os.environ.get("PIXABAY_API_KEY") or sc.get("pixabay_api_key", "") or config.get("background", {}).get("pixabay_api_key", "")
 
     if pexels_key:
         print(f"    Fetching {need} clip(s) from Pexels...")

@@ -19,15 +19,15 @@ english:
   position_y: 1550
 
 background:
-  pixabay_api_key: "55282801-1390dcdc1e29d53170060ce76"  # get free key at pixabay.com/api/docs
+  pixabay_api_key: ""  # or set PIXABAY_API_KEY env var
   search_query: "calm nature aerial"
   blur_radius: 0             # 0 = sharp moving background (blur removed by design)
   brightness: 0.78           # slightly less darkening so scenery comes through
 
 sourcing:
   background_provider: "pixabay"    # "pexels" (preferred) or "pixabay"
-  pexels_api_key: ""                # get free key at pexels.com/api — leave blank to use pixabay
-  pixabay_api_key: "55282801-1390dcdc1e29d53170060ce76"
+  pexels_api_key: ""                # or set PEXELS_API_KEY env var
+  pixabay_api_key: ""               # or set PIXABAY_API_KEY env var
   background_queries:
     - "cinematic forest path"
     - "ocean waves moody"
