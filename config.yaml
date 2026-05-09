@@ -1,0 +1,69 @@
+video:
+  width: 1080
+  height: 1920
+  fps: 30
+  duration: 60  # seconds to clip from YouTube
+
+arabic:
+  font: "assets/fonts/ScheherazadeNew-Regular.ttf"
+  size: 90
+  color_default: "#FFFFFF"
+  color_active: "#FFFFFF"   # gold — currently recited word
+  color_past: "#888888"
+  position_y: 700            # pixels from top center
+
+english:
+  font: "assets/fonts/Montserrat-Regular.ttf"
+  size: 38
+  color: "#E0E0E0"
+  position_y: 1550
+
+background:
+  pixabay_api_key: "55282801-1390dcdc1e29d53170060ce76"  # get free key at pixabay.com/api/docs
+  search_query: "calm nature aerial"
+  blur_radius: 0             # 0 = sharp moving background (blur removed by design)
+  brightness: 0.78           # slightly less darkening so scenery comes through
+
+sourcing:
+  background_provider: "pixabay"    # "pexels" (preferred) or "pixabay"
+  pexels_api_key: ""                # get free key at pexels.com/api — leave blank to use pixabay
+  pixabay_api_key: "55282801-1390dcdc1e29d53170060ce76"
+  background_queries:
+    - "cinematic forest path"
+    - "ocean waves moody"
+    - "mountains fog cinematic"
+    - "rain on leaves macro"
+    - "desert landscape golden"
+    - "river flowing nature"
+  clips_per_video: 8
+  min_clip_width: 1920
+
+output:
+  aspect: "portrait"         # "portrait" (9:16, 1080×1920) or "landscape" (16:9, 1920×1080)
+  fps: 30
+
+render:
+  style: "mushaf"            # "mushaf" (full ayah, default) or "word-pop" (one word at a time)
+  word_pop:
+    fade_duration: 0.08      # seconds to fade in/out each word
+    word_y_ratio_portrait: 0.45    # vertical center as fraction of H (portrait)
+    word_y_ratio_landscape: 0.50   # vertical center as fraction of H (landscape)
+    english_opacity: 0.6           # opacity of English translation strip
+    font_scale_landscape: 0.75     # multiply arabic.size by this in landscape mode
+
+waveform:
+  enabled: true
+  color: "#F5C518"
+  height: 60                 # bar height in pixels
+  position_y: 1750           # pixels from top
+
+tiktok:
+  cookies_file: "cookies/tiktok_cookies.txt"
+  caption: "{surah_name_ar} | Surah {surah_name_en}"
+  hashtags: "#quran #recitation #islam #peace #quranrecitation #fyp #foryoupage"
+  privacy: "public"          # use "private" for test runs
+
+whisper:
+  model: "medium"            # tiny/base/small/medium/large — medium balances speed+accuracy
+  language: "ar"
+  device: "cpu"              # or "cuda" if you have a GPU
