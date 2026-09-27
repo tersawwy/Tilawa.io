@@ -2,32 +2,21 @@ video:
   width: 1080
   height: 1920
   fps: 30
-  duration: 60  # seconds to clip from YouTube
+  duration: 58  # seconds to clip from YouTube
 
 arabic:
-  font: "assets/fonts/ScheherazadeNew-Regular.ttf"
-  size: 90
-  color_default: "#FFFFFF"
-  color_active: "#FFFFFF"   # gold — currently recited word
-  color_past: "#888888"
-  position_y: 700            # pixels from top center
-
-english:
-  font: "assets/fonts/Montserrat-Regular.ttf"
-  size: 38
-  color: "#E0E0E0"
-  position_y: 1550
+  font: "assets/fonts/ScheherazadeNew-Regular.ttf"   # SIL Scheherazade New — full Uthmani mark support (alt: KFGQPC-Uthmanic-HAFS.otf)
+  size: 90                   # word-pop base size (mushaf auto-fits, see render.text)
 
 background:
-  pixabay_api_key: ""  # or set PIXABAY_API_KEY env var
-  search_query: "calm nature aerial"
-  blur_radius: 0             # 0 = sharp moving background (blur removed by design)
-  brightness: 0.78           # slightly less darkening so scenery comes through
+  brightness: 0.78           # word-pop B-roll darkening
+  blur: 10                   # --background video: blur strength (at 1/3 resolution)
+  video_brightness: -0.14    # --background video: dimming
+  video_sharp_intro: true    # --background video: sharp until recitation starts, then dissolve to blurred
 
 sourcing:
-  background_provider: "pixabay"    # "pexels" (preferred) or "pixabay"
-  pexels_api_key: ""                # or set PEXELS_API_KEY env var
-  pixabay_api_key: ""               # or set PIXABAY_API_KEY env var
+  pexels_api_key: ""                # or PEXELS_API_KEY in .env / environment (nature footage)
+  pixabay_api_key: ""               # or PIXABAY_API_KEY (word-pop B-roll fallback only)
   background_queries:
     - "cinematic forest path"
     - "ocean waves moody"
@@ -40,22 +29,21 @@ sourcing:
 
 output:
   aspect: "portrait"         # "portrait" (9:16, 1080×1920) or "landscape" (16:9, 1920×1080)
-  fps: 30
 
 render:
-  style: "mushaf"            # "mushaf" (full ayah, default) or "word-pop" (one word at a time)
+  style: "mushaf"            # "mushaf" (whole ayah, default) or "word-pop" (legacy: one word at a time)
+  background: "ambient"      # mushaf: "ambient" (Pexels footage if key set, else generative) or "video" (the YouTube video, softly blurred)
+  theme: "auto"              # generative scene: night / dawn / emerald / auto (picked per surah)
+  text:                      # mushaf ayah text (defaults in modules/ayah_layer.py)
+    color: "#F4EEDD"         # warm ivory
+    accent: "#D8B46A"        # muted gold — ayah marker + surah title
+    max_size: 108            # font shrinks from here...
+    min_size: 64             # ...to here, then long ayahs split into pages
   word_pop:
     fade_duration: 0.08      # seconds to fade in/out each word
     word_y_ratio_portrait: 0.45    # vertical center as fraction of H (portrait)
     word_y_ratio_landscape: 0.50   # vertical center as fraction of H (landscape)
-    english_opacity: 0.6           # opacity of English translation strip
     font_scale_landscape: 0.75     # multiply arabic.size by this in landscape mode
-
-waveform:
-  enabled: true
-  color: "#F5C518"
-  height: 60                 # bar height in pixels
-  position_y: 1750           # pixels from top
 
 tiktok:
   cookies_file: "cookies/tiktok_cookies.txt"
@@ -63,7 +51,12 @@ tiktok:
   hashtags: "#quran #recitation #islam #peace #quranrecitation #fyp #foryoupage"
   privacy: "public"          # use "private" for test runs
 
-whisper:
-  model: "medium"            # tiny/base/small/medium/large — medium balances speed+accuracy
-  language: "ar"
-  device: "cpu"              # or "cuda" if you have a GPU
+sync:
+  ctc_model: "jonatasgrosman/wav2vec2-large-xlsr-53-arabic"   # listens + aligns (keeps repeats)
+  asr_model: "tarteel-ai/whisper-base-ar-quran"               # surah/ayah detection text
+  search_margin_ayahs: 2         # ayahs searched either side of the detected range
+  min_segment_confidence: -2.5   # mean CTC log-prob below this → fall back to heard timing
+  # Locator costs (higher = less likely). Defaults live in quran_align.LocateConfig.
+  repeat_cost: 1.5               # jumping back to repeat (whole or partial ayah)
+  skip_cost: 0.8                 # per word skipped because the ASR missed it
+  junk_enter: 1.2                # entering non-Quran speech (dua, talk, applause)

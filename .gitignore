@@ -11,3 +11,4 @@ build/
 implementation_plan.md
 PROJECT_MEMORY.md
 .claude/
+.DS_Store

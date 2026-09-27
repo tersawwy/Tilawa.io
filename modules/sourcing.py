@@ -1,8 +1,8 @@
 """
 Module 1 — Sourcing
-Downloads a trimmed audio clip from YouTube and fetches one or more cinematic
-background videos (Pexels preferred, Pixabay-with-quality-filters as fallback,
-solid-black last resort).
+Downloads the trimmed audio (and, for --background video, the matching video
+section) from YouTube, and fetches cinematic B-roll clips (Pexels preferred,
+Pixabay-with-quality-filters as fallback, generated gradient last resort).
 """
 
 import os
@@ -58,15 +58,77 @@ def download_audio(
     print(f"    Running yt-dlp (section {start_secs}s–{end_secs}s)...")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError(
-            f"yt-dlp failed:\n{result.stderr}"
-        )
+        # Section downloads stream straight from googlevideo through ffmpeg,
+        # which YouTube intermittently 403s. Fall back to fetching the whole
+        # audio track with yt-dlp's own downloader and trimming locally.
+        print("    Section download failed — downloading full audio and trimming...")
+        _download_full_and_trim(url, start_secs, duration, output_path, result.stderr)
 
     if not os.path.exists(output_path):
         raise FileNotFoundError(
             f"yt-dlp did not produce expected output at: {output_path}"
         )
 
+    return os.path.abspath(output_path)
+
+
+def _download_full_and_trim(url: str, start_secs: int, duration: float,
+                            output_path: str, first_error: str):
+    full_tmpl = os.path.join(os.path.dirname(output_path) or ".", "_full_audio.%(ext)s")
+    result = subprocess.run(
+        ["yt-dlp", "--no-playlist", "-f", "bestaudio", "-o", full_tmpl, "--print", "after_move:filepath", url],
+        capture_output=True, text=True,
+    )
+    full_path = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
+    if result.returncode != 0 or not os.path.exists(full_path):
+        raise RuntimeError(f"yt-dlp failed:\n{first_error}\n--- full download ---\n{result.stderr}")
+    try:
+        trim = subprocess.run(
+            ["ffmpeg", "-y", "-v", "error", "-ss", str(start_secs), "-t", str(duration),
+             "-i", full_path, "-vn", "-c:a", "libmp3lame", "-q:a", "0", output_path],
+            capture_output=True, text=True,
+        )
+        if trim.returncode != 0:
+            raise RuntimeError(f"ffmpeg trim failed:\n{trim.stderr}")
+    finally:
+        os.remove(full_path)
+
+
+def download_video(url: str, start_time: str, duration: float, output_path: str) -> str:
+    """Download the matching section of the YouTube video itself (video only,
+    ≤720p — it gets blurred, so more resolution is wasted) for the
+    ``--background video`` mode."""
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    start_secs = _hms_to_seconds(start_time)
+    fmt = "bv*[height<=720][ext=mp4]/bv*[height<=720]/b[height<=720]/b"
+    cmd = [
+        "yt-dlp", "--no-playlist", "-f", fmt,
+        "--download-sections", f"*{start_secs}-{start_secs + duration}",
+        "--force-keyframes-at-cuts", "--remux-video", "mp4",
+        "-o", output_path, url,
+    ]
+    print(f"    Running yt-dlp for video (section {start_secs}s–{start_secs + duration}s)...")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not os.path.exists(output_path):
+        print("    Section download failed — downloading full video and trimming...")
+        full_tmpl = os.path.join(os.path.dirname(output_path) or ".", "_full_video.%(ext)s")
+        full = subprocess.run(
+            ["yt-dlp", "--no-playlist", "-f", fmt, "-o", full_tmpl,
+             "--print", "after_move:filepath", url],
+            capture_output=True, text=True,
+        )
+        full_path = full.stdout.strip().splitlines()[-1] if full.stdout.strip() else ""
+        if full.returncode != 0 or not os.path.exists(full_path):
+            raise RuntimeError(f"yt-dlp video download failed:\n{result.stderr}\n{full.stderr}")
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-v", "error", "-ss", str(start_secs), "-t", str(duration),
+                 "-i", full_path, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                 output_path],
+                check=True,
+            )
+        finally:
+            os.remove(full_path)
     return os.path.abspath(output_path)
 
 
@@ -246,16 +308,30 @@ def _pixabay_fetch_quality(api_key: str, queries: list, n: int, min_width: int, 
     return collected
 
 
+_FALLBACK_PALETTES = [
+    ("0x0d1b2a", "0x274a5c"),   # deep teal
+    ("0x1a1030", "0x3a2a5c"),   # indigo dusk
+    ("0x1c1408", "0x4a3418"),   # amber dusk
+    ("0x0a1a12", "0x2a4a34"),   # forest night
+]
+
+
 def _generate_fallback_clips(n: int, cache_dir: Path) -> list:
-    """Generate n solid dark-background clips via ffmpeg."""
+    """
+    Generate n slowly-drifting gradient clips via ffmpeg — used only when no
+    Pexels/Pixabay key is configured. A designed gradient reads as intentional;
+    flat black reads as broken/missing, so this is not just a last resort.
+    """
     clips = []
     for idx in range(n):
         out_path = cache_dir / f"fallback_{idx}.mp4"
         if not out_path.exists():
+            c1, c2 = _FALLBACK_PALETTES[idx % len(_FALLBACK_PALETTES)]
             cmd = [
                 "ffmpeg", "-y",
                 "-f", "lavfi",
-                "-i", "color=c=0x0a0a1a:size=1080x1920:rate=30",
+                "-i",
+                f"gradients=s=1080x1920:c0={c1}:c1={c2}:x0=540:y0=200:x1=540:y1=1920:rate=30",
                 "-t", "30",
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
@@ -281,89 +357,10 @@ def _hms_to_seconds(hms: str) -> int:
 
 
 # ─────────────────────────────────────────────────────────────
-# Pixabay Background Video Download
+# Pixabay / download helpers
 # ─────────────────────────────────────────────────────────────
 
 PIXABAY_API_URL = "https://pixabay.com/api/videos/"
-
-# Fallback: if no key provided or API fails, use a minimal black video
-_FALLBACK_COLOR = (0, 0, 0)
-
-
-def fetch_background(
-    api_key: str,
-    query: str,
-    output_path: str,
-    min_duration: int = 30,
-) -> str:
-    """
-    Fetch a nature background video from the Pixabay API.
-    If the file already exists at output_path it is reused — no download occurs.
-    Falls back to generating a solid black background if the API fails.
-
-    Args:
-        api_key:      Pixabay API key (free at pixabay.com).
-        query:        Search query string (e.g. "calm nature aerial").
-        output_path:  Where to save the downloaded mp4.
-        min_duration: Minimum video length in seconds.
-
-    Returns:
-        Absolute path to the saved mp4 file.
-    """
-    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-
-    # ── Reuse cached file if it already exists ─────────────────
-    if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-        print(f"    Background cached — reusing {output_path}")
-        return os.path.abspath(output_path)
-
-    if not api_key or api_key == "YOUR_FREE_PIXABAY_KEY":
-        print("    Pixabay API key not set — generating solid background fallback.")
-        return _generate_fallback_background(output_path, min_duration)
-
-    try:
-        video_url = _pixabay_search(api_key, query, min_duration)
-        print(f"    Downloading background from Pixabay...")
-        _download_file(video_url, output_path)
-        return os.path.abspath(output_path)
-    except Exception as exc:
-        print(f"    Pixabay fetch failed ({exc}) — using fallback background.")
-        return _generate_fallback_background(output_path, min_duration)
-
-
-def _pixabay_search(api_key: str, query: str, min_duration: int) -> str:
-    """Search Pixabay and return a download URL for a suitable video."""
-    params = {
-        "key": api_key,
-        "q": query,
-        "video_type": "film",
-        "per_page": 20,
-        "safesearch": "true",
-        "order": "popular",
-    }
-    resp = requests.get(PIXABAY_API_URL, params=params, timeout=15)
-    resp.raise_for_status()
-    data = resp.json()
-
-    hits = data.get("hits", [])
-    if not hits:
-        raise ValueError(f"No Pixabay results for query: '{query}'")
-
-    # Filter by minimum duration and prefer portrait or tall videos
-    candidates = [h for h in hits if h.get("duration", 0) >= min_duration]
-    if not candidates:
-        candidates = hits  # relax duration filter if nothing matches
-
-    # Pick a random one from top results for variety
-    hit = random.choice(candidates[:10])
-
-    # Prefer medium quality (good balance of file size vs quality)
-    videos = hit.get("videos", {})
-    for quality in ("medium", "large", "small", "tiny"):
-        if quality in videos and videos[quality].get("url"):
-            return videos[quality]["url"]
-
-    raise ValueError("No downloadable video URL found in Pixabay response.")
 
 
 def _download_file(url: str, output_path: str):
@@ -373,23 +370,3 @@ def _download_file(url: str, output_path: str):
         with open(output_path, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
-
-
-def _generate_fallback_background(output_path: str, duration: int) -> str:
-    """
-    Generate a solid dark background video using ffmpeg.
-    Used when Pixabay API key is missing or the request fails.
-    """
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "lavfi",
-        "-i", f"color=c=0x0a0a1a:size=1080x1920:rate=30",
-        "-t", str(duration),
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        output_path,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg fallback background failed:\n{result.stderr}")
-    return os.path.abspath(output_path)
